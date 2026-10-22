@@ -1,122 +1,118 @@
-# PDF RAG Pipeline — Learning Project
+# RAG Chatbot — PDF Ingestion
 
-A Java Spring Boot project that builds the initial document-processing pipeline for a Retrieval-Augmented Generation (RAG) application.
-
-The current implementation supports PDF upload, text extraction, and basic text chunking. Embeddings, vector storage, and semantic retrieval are planned for future development.
-
-## Current Features
-
-- **PDF Upload:** Accept PDF files through a REST API using Spring Boot and `MultipartFile`.
-- **PDF Text Extraction:** Extract text from text-based PDF documents using Apache PDFBox.
-- **Text Chunking:** Split extracted text into smaller chunks using a configurable chunk size and overlap.
-- **Chunk Metadata:** Return the filename, total character count, total number of chunks, and generated chunks in the API response.
+A Retrieval-Augmented Generation (RAG) project built with Java and Spring
+Boot. The current implementation extracts text from PDF documents, splits the
+text into chunks, generates embeddings, and stores the resulting documents in
+PostgreSQL using pgvector.
 
 ## Tech Stack
 
-- Java 21
+- Java
 - Spring Boot
-- Spring Web
-- Apache PDFBox 3.0.6
-- Maven
-- REST APIs
+- Apache PDFBox — PDF text extraction
+- Spring AI — embedding model and vector store integration
+- Mistral AI — text embeddings using `mistral-embed`
+- PostgreSQL + pgvector — vector storage
+- Groq API — configured for chat model integration
 
-## Current Workflow
+## Current Features
 
-```text
-PDF File
-   |
-   v
-Spring Boot REST API
-   |
-   v
-PDF Text Extraction
-   |
-   v
-Extracted Text
-   |
-   v
-Character-Based Chunking
-   |
-   v
-List of Text Chunks
+- Upload a PDF through a REST API.
+- Extract text from text-based PDF documents.
+- Split extracted text into overlapping chunks.
+- Generate embeddings for document chunks through Spring AI.
+- Store document content, metadata, and embeddings in pgvector.
+- Include the source filename in document metadata.
+- Return ingestion details, including the extracted character count and number
+  of chunks.
+
+## Ingestion Workflow
+## 🏗️ Architecture — PDF Ingestion
+
+```mermaid
+flowchart TD
+    A["📄 PDF Upload<br/>REST API"]:::upload
+    B["📝 PDF Text Extraction<br/>Apache PDFBox"]:::processing
+    C["✂️ Text Chunking<br/>1000 chars · 150 overlap"]:::processing
+    D["🧠 Embedding Generation<br/>Mistral AI"]:::ai
+    E[("🐘 PostgreSQL + pgvector<br/>Store chunks & vectors")]:::database
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+
+    classDef upload fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A,stroke-width:2px
+    classDef processing fill:#D1FAE5,stroke:#059669,color:#064E3B,stroke-width:2px
+    classDef ai fill:#F3E8FF,stroke:#9333EA,color:#581C87,stroke-width:2px
+    classDef database fill:#FEF3C7,stroke:#D97706,color:#92400E,stroke-width:2px
+    linkStyle default stroke:#64748B,stroke-width:2px
 ```
 
-## API Endpoints
+## API Endpoint
 
-### 1. Upload a PDF
-
-**Method:** `POST`
-
-**Endpoint:** `/api/files/upload`
-
-Upload a file using `multipart/form-data` with the form field named `file`.
-
-The endpoint returns basic information about the uploaded file, such as its filename, size, and content type.
-
-### 2. Extract PDF Text
+### Ingest a PDF
 
 **Method:** `POST`
 
-**Endpoint:** `/api/files/extract-text`
+**Endpoint:** `/api/documents/ingest`
 
-Upload a PDF using `multipart/form-data`.
+**Request content type:** `multipart/form-data`
 
-The endpoint extracts text from the PDF and returns the filename, character count, and extracted text.
+The PDF must be provided using the form field named `file`.
 
-### 3. Generate Text Chunks
+```bash
+curl -X POST http://localhost:8080/api/documents/ingest \
+  -F "file=@/path/to/document.pdf"
+```
 
-**Method:** `POST`
+The response reports the filename, extracted character count, number of
+chunks, and ingestion status.
 
-**Endpoint:** `/api/files/chunk`
+## Configuration
 
-Upload a PDF using `multipart/form-data`.
+Configure the application using `application.yml` and environment variables.
 
-The endpoint extracts its text, divides it into chunks, and returns the filename, total character count, total number of chunks, and chunk contents.
+The current configuration requires:
 
-The current chunking configuration uses:
+- `MISTRAL_AI` — Mistral API key used for embeddings.
+- `GROK_AI` — API key variable currently configured for the Groq-compatible
+  chat endpoint.
 
-- Chunk size: 1000 characters
+Do not commit API keys or other secrets to Git.
+
+## Database
+
+The local development configuration uses PostgreSQL with the database name
+`ragdb2`.
+
+Before starting the application, ensure that:
+
+1. PostgreSQL is running.
+2. The `ragdb2` database exists.
+3. The configured database user has the necessary permissions.
+4. The pgvector extension and vector-store schema are available as required by
+   the project's Spring AI configuration.
+
+## Current Chunking
+
+The ingestion service currently uses:
+
+- Chunk size: 1,000 characters
 - Overlap: 150 characters
 
-These are initial learning values, not optimized production settings.
-
-## Example Response
-
-```json
-{
-  "filename": "sample.pdf",
-  "totalCharacters": 3143,
-  "totalChunks": 4,
-  "chunks": [
-    "First text chunk...",
-    "Second text chunk...",
-    "Third text chunk...",
-    "Fourth text chunk..."
-  ]
-}
-```
-
-The values above illustrate the response structure. Actual results depend on the uploaded PDF and the configured chunking parameters.
+These are character-based settings, not token counts. The chunking strategy and
+retrieval quality can be evaluated and improved in later iterations.
 
 ## Current Limitations
 
+- Extraction currently supports text-based PDFs; scanned PDFs may require OCR.
 - Chunking is character-based rather than token-based.
-- Words and sentences can be split across chunk boundaries.
-- Paragraphs and section headings are not yet preserved intelligently.
-- Scanned PDFs containing images may require OCR.
-- No embedding model or vector database is integrated yet.
-- No semantic search or LLM-generated answers are implemented yet.
+- Semantic retrieval has not yet been implemented and tested.
+- LLM answer generation from retrieved context is not yet implemented.
 
-## Planned Improvements
+## Next Milestone
 
-1. Implement paragraph- and sentence-aware chunking.
-2. Handle long paragraphs and word boundaries more carefully.
-3. Generate embeddings for each text chunk.
-4. Store chunks, metadata, and vectors in PostgreSQL with pgvector.
-5. Embed user queries and retrieve relevant chunks using vector similarity.
-6. Pass retrieved context to an LLM to generate grounded answers.
-7. Add source references and improve retrieval quality.
-
-## Project Goal
-
-Build a RAG pipeline step by step, starting with document ingestion and text processing before adding embeddings, vector search, and question answering.
+Implement and test similarity-based retrieval of relevant document chunks using
+a user's question. LLM answer generation from the retrieved context will
+follow after retrieval has been verified independently.
