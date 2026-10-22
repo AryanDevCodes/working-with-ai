@@ -1,49 +1,179 @@
 package com.aryandevccodes.rag_chatbot_demo2.service;
 
+import org.springframework.stereotype.Service;
+
+import java.text.BreakIterator;
 import java.util.ArrayList;
 import java.util.List;
-
-import org.springframework.stereotype.Service;
+import java.util.Locale;
 
 @Service
 public class TextChunker {
 
-    public List<String> chunk(String text, int size, int overlap) {
+    public List<String> chunk(
+            String text,
+            int chunkSize,
+            int overlap) {
         if (text == null || text.isBlank()) {
             return List.of();
         }
 
-        if (size <= 0) {
+        if (chunkSize <= 0 || overlap < 0 || overlap >= chunkSize) {
             throw new IllegalArgumentException(
-                    "chunkSize must be greater than 0");
-        }
-        if (overlap < 0 || overlap >= size) {
-            throw new IllegalArgumentException(
-                    "overlap must be >= 0 and < chunkSize");
+                    "Require chunkSize > overlap >= 0");
         }
 
-        text = text.trim();
+        String normalized = text
+                .replace("\r\n", "\n")
+                .replace('\r', '\n')
+                .trim();
 
-        List<String> chunks = new ArrayList<>();
+        List<String> units = new ArrayList<>();
 
-        // extract each chunk
+        // 1. Split into paragraphs first.
+        for (String paragraph : normalized.split("\\n\\s*\\n+")) {
+            String cleaned = paragraph.trim();
 
+            if (!cleaned.isEmpty()) {
+                units.addAll(splitLargeParagraph(cleaned, chunkSize));
+            }
+        }
+
+        // 2. Pack paragraphs/sentences into chunks.
+        List<String> baseChunks = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+
+        for (String unit : units) {
+            if (current.length() == 0) {
+                current.append(unit);
+            } else if (current.length() + 2 + unit.length() <= chunkSize) {
+                current.append("\n\n").append(unit);
+            } else {
+                baseChunks.add(current.toString());
+                current.setLength(0);
+                current.append(unit);
+            }
+        }
+
+        if (current.length() > 0) {
+            baseChunks.add(current.toString());
+        }
+
+        // 3. Add overlap from the previous chunk.
+        if (overlap == 0 || baseChunks.size() <= 1) {
+            return List.copyOf(baseChunks);
+        }
+
+        List<String> result = new ArrayList<>();
+        result.add(baseChunks.get(0));
+
+        for (int i = 1; i < baseChunks.size(); i++) {
+            String previous = baseChunks.get(i - 1);
+            String next = baseChunks.get(i);
+
+            String shared = trailingWholeWords(previous, overlap);
+
+            result.add(shared.isEmpty()
+                    ? next
+                    : shared + "\n\n" + next);
+        }
+
+        return List.copyOf(result);
+    }
+
+    private List<String> splitLargeParagraph(
+            String paragraph,
+            int chunkSize) {
+        if (paragraph.length() <= chunkSize) {
+            return List.of(paragraph);
+        }
+
+        // Prefer sentence boundaries.
+        BreakIterator iterator = BreakIterator.getSentenceInstance(Locale.ROOT);
+
+        iterator.setText(paragraph);
+
+        List<String> sentences = new ArrayList<>();
+        int start = iterator.first();
+
+        for (int end = iterator.next(); end != BreakIterator.DONE; start = end, end = iterator.next()) {
+
+            String sentence = paragraph.substring(start, end).trim();
+
+            if (!sentence.isEmpty()) {
+                sentences.add(sentence);
+            }
+        }
+
+        // Fallback for a sentence longer than chunkSize.
+        List<String> result = new ArrayList<>();
+
+        for (String sentence : sentences) {
+            if (sentence.length() <= chunkSize) {
+                result.add(sentence);
+            } else {
+                result.addAll(splitAtWordBoundaries(
+                        sentence, chunkSize));
+            }
+        }
+
+        return result;
+    }
+
+    private List<String> splitAtWordBoundaries(
+            String text,
+            int chunkSize) {
+        List<String> result = new ArrayList<>();
         int start = 0;
+
         while (start < text.length()) {
+            int end = Math.min(start + chunkSize, text.length());
 
-            int end = Math.min(start + size, text.length());
+            if (end < text.length()) {
+                int space = text.lastIndexOf(' ', end);
 
-            String chunk = text.substring(start, end);
-
-            chunks.add(chunk);
-
-            if (end == text.length()) {
-                break;
+                if (space > start) {
+                    end = space;
+                }
             }
 
-            start = end - overlap;
+            // A single unbroken token may exceed chunkSize.
+            if (end == start) {
+                end = Math.min(start + chunkSize, text.length());
+            }
+
+            String part = text.substring(start, end).trim();
+
+            if (!part.isEmpty()) {
+                result.add(part);
+            }
+
+            start = end;
+
+            while (start < text.length()
+                    && Character.isWhitespace(text.charAt(start))) {
+                start++;
+            }
         }
 
-        return List.copyOf(chunks);
+        return result;
+    }
+
+    private String trailingWholeWords(
+            String text,
+            int overlap) {
+        if (text.length() <= overlap) {
+            return text;
+        }
+
+        int start = text.length() - overlap;
+
+        // Avoid starting in the middle of a word.
+        while (start < text.length()
+                && !Character.isWhitespace(text.charAt(start))) {
+            start++;
+        }
+
+        return text.substring(start).trim();
     }
 }

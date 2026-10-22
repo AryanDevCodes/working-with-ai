@@ -3,8 +3,8 @@ spring:
         name: rag-chatbot-demo2
     datasource: 
         url: jdbc:postgresql://localhost:5432/ragdb2
-        username: raguser
-        password: ragpass
+        username: postgres
+        password: 8252
         driver-class-name: org.postgresql.Driver
     ai: 
       model:
@@ -19,10 +19,10 @@ spring:
         api-key: ${MISTRAL_AI}
         embedding:
           model: mistral-embed
-    #   vectorstore:
-    #     pgvector:
-    #       initialize-schema: true
-    #       index-type: HNSW
-    #       distance-type: cosine-distance
-    #       dimensions: 1024
+      vectorstore:
+        pgvector:
+          initialize-schema: true
+          index-type: HNSW
+          distance-type: cosine-distance
+          dimensions: 1024
      
