@@ -1,0 +1,28 @@
+spring:
+    application:
+        name: rag-chatbot-demo2
+    datasource: 
+        url: jdbc:postgresql://localhost:5432/ragdb2
+        username: raguser
+        password: ragpass
+        driver-class-name: org.postgresql.Driver
+    ai: 
+      model:
+        chat: openai
+        embedding: mistral
+      openai: 
+        base-url: https://api.groq.com/openai/v1
+        api-key: ${GROK_AI}
+        chat:
+          model: openai/gpt-oss-120b
+      mistralai:
+        api-key: ${MISTRAL_AI}
+        embedding:
+          model: mistral-embed
+    #   vectorstore:
+    #     pgvector:
+    #       initialize-schema: true
+    #       index-type: HNSW
+    #       distance-type: cosine-distance
+    #       dimensions: 1024
+     
